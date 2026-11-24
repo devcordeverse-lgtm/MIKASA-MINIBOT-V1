@@ -1,22 +1,20 @@
-<div align="center"><img src="https://files.catbox.moe/bqy3x1.png" width="100%" alt="MIKASA MINI BOT V1">👑 MIKASA MINI BOT V1
+<div align="center"><img src="https://files.catbox.moe/bqy3x1.png" width="100%">👑 MIKASA MINI BOT V1
 
 ✨ MULTI-DEVICE WHATSAPP BOT
 
-Small Bot • Big Power
+SMALL BOT • BIG POWER
 
-Developed by CODEVERSE
+DEVELOPED BY CODEVERSE
 
-""Version" (https://img.shields.io/badge/VERSION-1.0-orange?style=for-the-badge)"
-""Platform" (https://img.shields.io/badge/PLATFORM-WHATSAPP-green?style=for-the-badge)"
-""Developer" (https://img.shields.io/badge/DEVELOPER-CODEVERSE-black?style=for-the-badge)"
+━━━━━━━━━━━━━━━━━━━━
 
-</div>---
+"VERSION 1.0" • "WHATSAPP" • "CODEVERSE"
 
-🌸 ABOUT MIKASA
+━━━━━━━━━━━━━━━━━━━━
 
-MIKASA MINI BOT is a modern and powerful WhatsApp Multi-Device Bot designed to make your WhatsApp experience easier, faster and more enjoyable.
+</div>🌸 ABOUT MIKASA
 
-Built with a clean system, modern commands and a unique identity.
+MIKASA MINI BOT is a modern WhatsApp Multi-Device Bot designed to make your WhatsApp experience easier, faster and more enjoyable.
 
 ⚡ FEATURES
 
@@ -38,8 +36,6 @@ npm start
 
 🔑 CONFIGURATION
 
-Configure your bot settings before starting:
-
 BOT_NAME=MIKASA MINI BOT
 PREFIX=.
 OWNER_NAME=CODEVERSE
@@ -53,25 +49,16 @@ OWNER_NAME=CODEVERSE
 
 👑 DEVELOPER
 
-<div align="center">CODEVERSE
+CODEVERSE
 
 Creating Technology Beyond Limits.
 
-🌸 MIKASA MINI BOT V1
+━━━━━━━━━━━━━━━━━━━━
+
+<div align="center">🌸 MIKASA MINI BOT V1
 
 SMALL BOT • BIG POWER
 
-</div>---
-
-<div align="center">⭐ SUPPORT THE PROJECT
-
-If you like MIKASA MINI BOT, don't forget to give this repository a star!
-
-© 2026 MIKASA MINI BOT — CODEVERSE
+© 2026 CODEVERSE
 
 </div>
-
-
-
-# MIKASA-MINIBOT-V1
-The Best Bot On the World 🌎 
