@@ -150,6 +150,7 @@ function unwrap(m) {
               x?.viewOnceMessageV2?.message ||
               x?.viewOnceMessageV2Extension?.message ||
               x?.documentWithCaptionMessage?.message ||
+              x?.editedMessage?.message ||
               null;
     if (!n) break;
     x = n;
@@ -157,9 +158,37 @@ function unwrap(m) {
   return x;
 }
 
+// Id of whatever the user tapped (quick_reply / list row / legacy buttons)
+const BUTTON_LABELS = { dev: 'owner', list: 'menu all', repo: 'repo', menu: 'menu', packages: 'menu' };
+function tappedId(src) {
+  try {
+    const ir = src.interactiveResponseMessage;
+    if (ir) {
+      const raw = ir.nativeFlowResponseMessage?.paramsJson;
+      if (raw) {
+        const j = JSON.parse(raw);
+        const id = j.id || j.selectedId || j.selected_id || j.row_id || j.rowId;
+        if (id) return String(id);
+      }
+      // fallback: map the visible label (😌 Dev / 📜 List / 📡 Repo) to its command
+      const label = String(ir.body?.text || '').replace(/[^a-zA-Z ]/g, '').trim().toLowerCase();
+      if (BUTTON_LABELS[label]) return PREFIX + BUTTON_LABELS[label];
+    }
+  } catch {}
+  return (
+    src.buttonsResponseMessage?.selectedButtonId ||
+    src.templateButtonReplyMessage?.selectedId ||
+    src.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    ''
+  );
+}
+
 export function getMessageText(msg) {
   if (!msg?.message) return '';
   const src = unwrap(msg.message) || {};
+  // a tapped button always wins over any text
+  const tapped = tappedId(src);
+  if (tapped) return String(tapped).trim();
   return (
     src.conversation ||
     src.extendedTextMessage?.text ||
@@ -168,8 +197,6 @@ export function getMessageText(msg) {
     src.documentMessage?.caption ||
     src.buttonsResponseMessage?.selectedDisplayText ||
     src.templateButtonReplyMessage?.selectedDisplayText ||
-    src.listResponseMessage?.singleSelectReply?.selectedRowId ||
-    (() => { try { return JSON.parse(src.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson || '{}').id; } catch { return ''; } })() ||
     ''
   ).trim();
 }
@@ -325,38 +352,42 @@ function menuHeader(userName) {
   const usedGB = ((os.totalmem() - os.freemem()) / 1024 ** 3).toFixed(2);
   const totGB  = (os.totalmem() / 1024 ** 3).toFixed(2);
   const modeIcon = st.mode === 'public' ? '❤️‍🩹' : '🔒';
+  // open-ended frame (no right border) → never wraps / breaks on any screen
   return [
-    `┌──《 ${serif(BOT_NAME)} 》──◇`,
-    `│❥•${serif('Run')}     : ${fmtUptime(process.uptime())}`,
-    `│❥•${serif('Mode')}    : ${st.mode.toUpperCase()} ${modeIcon}`,
-    `│❥•${serif('Prefix')}  : ${st.prefix}`,
-    `│❥•${serif('Ram')}     : ${usedGB} / ${totGB} GB`,
-    `│❥•${serif('Time')}    : ${new Date().toLocaleTimeString('en-GB')}`,
-    `│❥•${serif('User')}    : ${userName || 'User'}`,
-    `└────────────◇`,
+    `╭─❮ ${serif(BOT_NAME)} ❯`,
+    `│❥ ${serif('Run')} : ${fmtUptime(process.uptime())}`,
+    `│❥ ${serif('Mode')} : ${st.mode.toUpperCase()} ${modeIcon}`,
+    `│❥ ${serif('Prefix')} : ${st.prefix}`,
+    `│❥ ${serif('Ram')} : ${usedGB} / ${totGB} GB`,
+    `│❥ ${serif('Time')} : ${new Date().toLocaleTimeString('en-GB')}`,
+    `│❥ ${serif('User')} : ${userName || 'User'}`,
+    `╰─────────◇`,
   ].join('\n');
 }
 
 // pkg = '' → main menu (list of packages) ; pkg = 'group' → commands of that package
-function buildMenu(userName, pkg = '') {
+// withFoot=false when the footer is already shown by the interactive message
+function buildMenu(userName, pkg = '', withFoot = true) {
   const st = getState();
   const head = menuHeader(userName);
-  const foot = `\n\n> Made with love by ${serif(BOT_NAME)}`;
+  const foot = withFoot ? `\n\n> Made with love by ${serif(BOT_NAME)}` : '';
   const key = Object.keys(MENU_GROUPS).find((k) => k.toLowerCase() === String(pkg).toLowerCase());
 
   if (key) {
     const cmds = MENU_GROUPS[key];
-    return `${head}\n\n┌──《 ${serif(key)} 》──◇\n${cmds.map((c) => `│❥ ${st.prefix}${c}`).join('\n')}\n└────────────◇${foot}`;
+    return `${head}\n╭─❮ ${serif(key)} ❯\n${cmds.map((c) => `│❥ ${st.prefix}${c}`).join('\n')}\n╰─────────◇${foot}`;
   }
-  const list = Object.entries(MENU_GROUPS)
-    .map(([k, v]) => `│❥ ${st.prefix}menu ${k.toLowerCase()}  (${v.length})`).join('\n');
-  return `${head}\n\n┌──《 ${serif('PACKAGES')} 》──◇\n${list}\n│❥ ${st.prefix}menu all\n└────────────◇${foot}`;
+  // main menu: packages in 3 columns → short enough to show without "Voir plus"
+  const names = Object.entries(MENU_GROUPS).map(([k, v]) => `${st.prefix}menu ${k.toLowerCase()} (${v.length})`);
+  const rows = [];
+  for (let i = 0; i < names.length; i += 2) rows.push(`│❥ ${names.slice(i, i + 2).join('   ')}`);
+  return `${head}\n╭─❮ ${serif('PACKAGES')} ❯\n${rows.join('\n')}\n╰─────────◇${foot}`;
 }
 
 function buildFullMenu(userName) {
   const st = getState();
   const body = Object.entries(MENU_GROUPS).map(([k, cmds]) =>
-    `┌──《 ${serif(k)} 》──◇\n${cmds.map((c) => `│❥ ${st.prefix}${c}`).join('\n')}\n└────────────◇`).join('\n\n');
+    `╭─❮ ${serif(k)} ❯\n${cmds.map((c) => `│❥ ${st.prefix}${c}`).join('\n')}\n╰─────────◇`).join('\n\n');
   return `${menuHeader(userName)}\n\n${body}\n\n> Made with love by ${serif(BOT_NAME)}`;
 }
 
@@ -974,46 +1005,54 @@ export async function handleCommand(natsu, msg) {
       case 'menu': {
         const userName = msg.pushName || senderNum;
         const pkg = (args[0] || '').toLowerCase();
-        const menuText = pkg === 'all' ? buildFullMenu(userName) : buildMenu(userName, pkg);
-        // Link-preview card: big image on top, "BOT • Online" + "Type .menu <package> for more"
-        const ctx = {
-          ...newsletterContext(),
-          externalAdReply: {
-            title: `${serif(BOT_NAME)} • Online`,
-            body: `Type ${P}menu <package> for more`,
-            ...(MENU_BUFFER ? { thumbnail: MENU_BUFFER } : {}),
-            sourceUrl: WA_CHANNELS[0] || OWNER_WA,
-            mediaType: 1,
-            renderLargerThumbnail: true,
-            showAdAttribution: false,
-          },
-        };
-        // 3 buttons under the menu: Dev / List / Repo (quick replies → run the command)
-        const btn = (text, id) => ({ name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: text, id }) });
-        const buttons = [btn('😌 Dev', `${P}owner`), btn('📜 List', `${P}menu all`), btn('📡 Repo', `${P}repo`)];
+        const isFull = pkg === 'all';
+        const menuText = isFull ? buildFullMenu(userName) : buildMenu(userName, pkg, false);
+        const ctx = newsletterContext();
+        const qr = (text, id) => ({ name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: text, id }) });
+        const buttons = [];
+        if (!isFull) {
+          // tap-to-open list with every package
+          buttons.push({
+            name: 'single_select',
+            buttonParamsJson: JSON.stringify({
+              title: '📂 Packages',
+              sections: [{
+                title: `${BOT_NAME} PACKAGES`,
+                rows: Object.entries(MENU_GROUPS).map(([k, v]) => ({
+                  header: '', title: k, description: `${v.length} commands`, id: `${P}menu ${k.toLowerCase()}`,
+                })),
+              }],
+            }),
+          });
+        }
+        buttons.push(qr('😌 Dev', `${P}owner`), qr('📜 List', `${P}menu all`), qr('📡 Repo', `${P}repo`));
+        const fallbackText = isFull ? menuText : buildMenu(userName, pkg, true);
         try {
-          const { generateWAMessageFromContent, proto } = await import('@whiskeysockets/baileys');
+          const { generateWAMessageFromContent, prepareWAMessageMedia, proto } = await import('@whiskeysockets/baileys');
+          const media = MENU_BUFFER ? await prepareWAMessageMedia({ image: MENU_BUFFER }, { upload: natsu.waUploadToServer }) : {};
           const content = generateWAMessageFromContent(jid, {
             viewOnceMessage: { message: {
               messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
               interactiveMessage: proto.Message.InteractiveMessage.create({
                 body: proto.Message.InteractiveMessage.Body.create({ text: menuText }),
                 footer: proto.Message.InteractiveMessage.Footer.create({ text: `Made with love by ${BOT_NAME}` }),
-                header: proto.Message.InteractiveMessage.Header.create({ hasMediaAttachment: false }),
+                header: proto.Message.InteractiveMessage.Header.create({ hasMediaAttachment: !!MENU_BUFFER, ...media }),
                 contextInfo: ctx,
-                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({ buttons }),
+                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({ buttons, messageParamsJson: '' }),
               }),
             } },
-          }, { quoted: msg });
+          }, { quoted: msg, userJid: natsu.user?.id });
           await natsu.relayMessage(jid, content.message, {
             messageId: content.key.id,
             additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' },
               content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
           });
         } catch (e) {
-          console.log(`⚠️ buttons failed (${e.message}) — sending plain menu`);
-          try { await natsu.sendMessage(jid, { text: menuText, contextInfo: ctx }, { quoted: msg }); }
-          catch { await natsu.sendMessage(jid, { text: menuText }); }
+          console.log(`⚠️ buttons failed (${e.message}) — sending image menu`);
+          try {
+            if (MENU_BUFFER) await natsu.sendMessage(jid, { image: MENU_BUFFER, caption: fallbackText, contextInfo: ctx }, { quoted: msg });
+            else await natsu.sendMessage(jid, { text: fallbackText, contextInfo: ctx }, { quoted: msg });
+          } catch { await natsu.sendMessage(jid, { text: fallbackText }); }
         }
         break;
       }
